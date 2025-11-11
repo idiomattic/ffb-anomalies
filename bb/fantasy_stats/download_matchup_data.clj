@@ -81,7 +81,7 @@
 (defn get-league-matchups [{:keys [league-id status season]}]
   (let [weeks-to-fetch (if (= status "complete")
                          (range 1 (inc max-week))
-                         (range 1 (inc (get-nfl-state))))]
+                         (range 1 (get-nfl-state)))]
     (reduce (fn [acc week-number]
               (let [matchups (get-matchups {:league-id league-id :week week-number})]
                 (conj acc {:league-id league-id

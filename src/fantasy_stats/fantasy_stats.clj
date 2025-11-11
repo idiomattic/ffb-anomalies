@@ -15,9 +15,8 @@
 (defn parse-matchups
   "Takes a week's matchups, returning a sequence of maps containing :username, :points-for, and :points-against."
   [matchups week roster-id->username]
-  (as-> matchups $
-    (group-by :matchup_id $)
-    (update-vals $ (fn [[roster-a roster-b]]
+  (-> (group-by :matchup_id matchups)
+      (update-vals (fn [[roster-a roster-b]]
                      [{:username (get roster-id->username (:roster_id roster-a))
                        :week week
                        :points-for (:points roster-a)
@@ -26,7 +25,7 @@
                        :week week
                        :points-for (:points roster-b)
                        :points-against (:points roster-a)}]))
-    (vals $)))
+      (vals)))
 
 (defn -main
   [& args]

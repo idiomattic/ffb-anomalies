@@ -166,6 +166,36 @@
                         sorted)))
             (vals grouped))))
 
+(defn print-anomalies!
+  [anomalies]
+  (let [sorted-anomalies (->> anomalies
+                              (filter #(>= (Math/abs (:z-score %)) 2.0))
+                              (sort-by :p-value))]
+    (if (empty? sorted-anomalies)
+      (println "No anomalous stretches found with the given p-value threshold.")
+      (do
+        (println (format "Found %d anomalous stretches:"
+                         (count sorted-anomalies)))
+        (println)
+        (doseq [anomaly (take 20 sorted-anomalies)]
+          (println (format "[%s] %s: %s streak (weeks %s)"
+                           (describe-anomaly-severity (:z-score anomaly))
+                           (:username anomaly)
+                           (case (:type anomaly)
+                             :points-for-high "Extremely HIGH scoring"
+                             :points-for-low "Extremely LOW scoring"
+                             :points-against-high "Faced extremely HIGH opponents"
+                             :points-against-low "Faced extremely LOW opponents")
+                           (str/join ", " (:weeks anomaly))))
+          (println (format "  Total: %.2f (avg %.2f/week), p-value: %.6f, z-score: %.2f"
+                           (:total anomaly)
+                           (:average anomaly)
+                           (:p-value anomaly)
+                           (:z-score anomaly)))
+          (when (>= (Math/abs (:z-score anomaly)) 3.0)
+            (println (format "  ^ This is a %.1f-sigma event!" (Math/abs (:z-score anomaly)))))
+          (println))))))
+
 (defn -main
   [& args]
   (let [p-threshold (if (empty? args)
@@ -220,35 +250,9 @@
                                   []
                                   matchups-by-username)
             filtered-anomalies (remove-sub-stretches all-anomalies)]
-
         (println (format "Season: %s" (:season season-data)))
         (println (format "Points For - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-for) (:std-dev season-stats-for)))
         (println (format "Points Against - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-against) (:std-dev season-stats-against)))
         (println)
 
-        (let [sorted-anomalies (sort-by :p-value filtered-anomalies)]
-          (if (empty? sorted-anomalies)
-            (println "No anomalous stretches found with the given p-value threshold.")
-            (do
-              (println (format "Found %d anomalous stretches (filtered from %d):"
-                               (count sorted-anomalies)
-                               (count all-anomalies)))
-              (println)
-              (doseq [anomaly (take 20 sorted-anomalies)]
-                (println (format "[%s] %s: %s streak (weeks %s)"
-                                 (describe-anomaly-severity (:z-score anomaly))
-                                 (:username anomaly)
-                                 (case (:type anomaly)
-                                   :points-for-high "Extremely HIGH scoring"
-                                   :points-for-low "Extremely LOW scoring"
-                                   :points-against-high "Faced extremely HIGH opponents"
-                                   :points-against-low "Faced extremely LOW opponents")
-                                 (str/join ", " (:weeks anomaly))))
-                (println (format "  Total: %.2f (avg %.2f/week), p-value: %.6f, z-score: %.2f"
-                                 (:total anomaly)
-                                 (:average anomaly)
-                                 (:p-value anomaly)
-                                 (:z-score anomaly)))
-                (when (>= (Math/abs (:z-score anomaly)) 3.0)
-                  (println (format "  ^ This is a %.1f-sigma event!" (Math/abs (:z-score anomaly)))))
-                (println)))))))))
+        (print-anomalies! filtered-anomalies)))))

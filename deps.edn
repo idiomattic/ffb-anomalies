@@ -2,7 +2,9 @@
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
         org.apache.commons/commons-math3 {:mvn/version "3.6.1"}
         hato/hato {:mvn/version "1.0.0"}
-        cheshire/cheshire {:mvn/version "6.1.0"}}
+        cheshire/cheshire {:mvn/version "6.1.0"}
+        juxt/aero {:git/url "https://github.com/juxt/aero"
+                   :git/sha "d9935ee611197e697310baff7f3a09d95a12b3e7"}}
  :aliases
  {:run-m {:main-opts ["-m" "fantasy-stats.main"]}
   :run-x {:ns-default fantasy-stats.fantasy-stats

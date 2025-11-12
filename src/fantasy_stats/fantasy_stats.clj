@@ -54,7 +54,7 @@
 
 (defn calculate-p-value
   "Calculate the p-value for a given value using normal distribution."
-  [value mean std-dev direction]
+  [{:keys [value mean std-dev direction]}]
   (let [z-score (/ (- value mean) std-dev)]
     (case direction
       :high (- 1 (.cumulativeProbability standard-normal z-score))
@@ -64,7 +64,7 @@
 
 (defn find-anomalous-stretches
   "Find stretches that are statistically anomalous based on p-value threshold."
-  [username matchups all-points-for all-points-against p-threshold]
+  [{:keys [username matchups all-points-for all-points-against p-threshold]}]
   (let [stats-for (calculate-stats all-points-for)
         stats-against (calculate-stats all-points-against)]
     (reduce
@@ -78,10 +78,22 @@
              mean-sum-against (* (:mean stats-against) stretch-length)]
          (reduce
           (fn [acc stretch]
-            (let [p-value-for-high (calculate-p-value (:total-for stretch) mean-sum-for std-dev-sum-for :high)
-                  p-value-for-low (calculate-p-value (:total-for stretch) mean-sum-for std-dev-sum-for :low)
-                  p-value-against-high (calculate-p-value (:total-against stretch) mean-sum-against std-dev-sum-against :high)
-                  p-value-against-low (calculate-p-value (:total-against stretch) mean-sum-against std-dev-sum-against :low)]
+            (let [p-value-for-high (calculate-p-value {:value (:total-for stretch)
+                                                       :mean mean-sum-for
+                                                       :std-dev std-dev-sum-for
+                                                       :direction :high})
+                  p-value-for-low (calculate-p-value {:value (:total-for stretch)
+                                                      :mean mean-sum-for
+                                                      :std-dev std-dev-sum-for
+                                                      :direction :low})
+                  p-value-against-high (calculate-p-value {:value (:total-against stretch)
+                                                           :mean mean-sum-against
+                                                           :std-dev std-dev-sum-against
+                                                           :direction :high})
+                  p-value-against-low (calculate-p-value {:value (:total-against stretch)
+                                                          :mean mean-sum-against
+                                                          :std-dev std-dev-sum-against
+                                                          :direction :low})]
               (cond-> acc
                 (< p-value-for-high p-threshold)
                 (conj {:username username
@@ -196,6 +208,12 @@
             (println (format "  ^ This is a %.1f-sigma event!" (Math/abs (:z-score anomaly)))))
           (println))))))
 
+(defn print-season-info!
+  [{:keys [season-data stats-for stats-against]}]
+  (println (format "Season: %s" (:season season-data)))
+  (println (format "Points For - Mean: %.2f, Std Dev: %.2f" (:mean stats-for) (:std-dev stats-for)))
+  (println (format "Points Against - Mean: %.2f, Std Dev: %.2f" (:mean stats-against) (:std-dev stats-against))))
+
 (defn -main
   [& args]
   (let [p-threshold (if (empty? args)
@@ -244,15 +262,18 @@
                                   {}
                                   league-members)
             all-anomalies (reduce (fn [acc [username matchups]]
-                                    (if-let [anomalies (seq (find-anomalous-stretches username matchups all-points-for all-points-against p-threshold))]
+                                    (if-let [anomalies (seq (find-anomalous-stretches {:username username
+                                                                                       :matchups matchups
+                                                                                       :all-points-for all-points-for
+                                                                                       :all-points-against all-points-against
+                                                                                       :p-threshold p-threshold}))]
                                       (concat acc anomalies)
                                       acc))
                                   []
                                   matchups-by-username)
             filtered-anomalies (remove-sub-stretches all-anomalies)]
-        (println (format "Season: %s" (:season season-data)))
-        (println (format "Points For - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-for) (:std-dev season-stats-for)))
-        (println (format "Points Against - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-against) (:std-dev season-stats-against)))
+        (print-season-info! {:season-data season-data
+                             :stats-for season-stats-for
+                             :stats-against season-stats-against})
         (println)
-
         (print-anomalies! filtered-anomalies)))))

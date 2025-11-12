@@ -1,3 +1,3 @@
-{:league {:id "1257434174667620353"}
+{:league {:id #or [#env SLEEPER_LEAGUE_ID "1111111111111111111"]}
  :settings {:data-memoization-ttl-ms 60000
             :max-week 17}}

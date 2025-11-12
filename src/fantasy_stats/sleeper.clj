@@ -2,7 +2,8 @@
   (:require [clojure.core.memoize :as memoize]
             [hato.client :as hc]
             [cheshire.core :as json]
-            [fantasy-stats.config :as config]))
+            [fantasy-stats.config :as config]
+            [fantasy-stats.parse :as parse]))
 
 (def sleeper-client
   (hc/build-http-client {:connect-timeout 10000}))
@@ -54,17 +55,6 @@
     (when (= 200 status)
       (:week (json/parse-string body true)))))
 
-(defn make-roster-id-to-username-map
-  [{:keys [league-id]}]
-  (let [rosters (get-league-rosters {:league-id league-id})
-        users (get-league-users {:league-id league-id})]
-    (reduce (fn [acc {:keys [roster_id owner_id]}]
-              (assoc acc roster_id (some #(when (= owner_id (:user_id %))
-                                            (:display_name %))
-                                         users)))
-            {}
-            rosters)))
-
 (defn- get-leagues [starting-league-id]
   (loop [league-id starting-league-id
          result []]
@@ -94,7 +84,9 @@
   (let [leagues (get-leagues (get-in config/store [:league :id]))]
     (mapv (fn [league]
             (let [{:keys [league-id]} league
-                  roster-id->username (make-roster-id-to-username-map {:league-id league-id})
+                  rosters (get-league-rosters {:league-id league-id})
+                  users (get-league-users {:league-id league-id})
+                  roster-id->username (parse/roster-id-to-username-map {:rosters rosters :users users})
                   matchups (get-league-matchups league)]
               (merge league
                      {:matchups matchups

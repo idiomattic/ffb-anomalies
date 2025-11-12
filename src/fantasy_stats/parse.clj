@@ -3,6 +3,15 @@
             [fantasy-stats.calculate :as calculate]
             [fantasy-stats.parse :as parse]))
 
+(defn roster-id-to-username-map
+  [{:keys [rosters users]}]
+  (reduce (fn [acc {:keys [roster_id owner_id]}]
+            (assoc acc roster_id (some #(when (= owner_id (:user_id %))
+                                          (:display_name %))
+                                       users)))
+          {}
+          rosters))
+
 (defn matchups
   "Takes a week's matchups, returning a sequence of maps containing :username, :points-for, and :points-against."
   [matchups roster-id->username]

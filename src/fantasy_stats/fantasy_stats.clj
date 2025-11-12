@@ -1,6 +1,6 @@
 (ns fantasy-stats.fantasy-stats
   (:require [clojure.java.io :as io]
-            [clojure.pprint :as pp]
+            [clojure.set :as set]
             [clojure.string :as str]
             [clojure.edn :as edn])
   (:import (org.apache.commons.math3.stat.descriptive SummaryStatistics)
@@ -140,17 +140,36 @@
   [z-score]
   (let [abs-z (Math/abs z-score)]
     (cond
-      (>= abs-z 3.5) :EXTREME
-      (>= abs-z 3.0) :VERY
-      (>= abs-z 2.5) :RARE
-      (>= abs-z 2.0) :UNUSUAL
-      :else :NOTABLE)))
+      (>= abs-z 3.5) "EXTREME"
+      (>= abs-z 3.0) "VERY"
+      (>= abs-z 2.5) "RARE"
+      (>= abs-z 2.0) "UNUSUAL"
+      :else "NOTABLE")))
 
+(defn remove-sub-stretches
+  "Remove anomalous stretches that are fully contained within other stretches
+   of the same type for the same user."
+  [anomalies]
+  (let [grouped (group-by (juxt :username :type) anomalies)]
+    (mapcat (fn [group-anomalies]
+              (let [sorted (sort-by :p-value group-anomalies)]
+                (reduce (fn [kept anomaly]
+                          (if (some (fn [other]
+                                      (and (not= anomaly other)
+                                           (<= (:p-value other) (:p-value anomaly))
+                                           (set/subset? (set (:weeks anomaly))
+                                                        (set (:weeks other)))))
+                                    sorted)
+                            kept
+                            (conj kept anomaly)))
+                        []
+                        sorted)))
+            (vals grouped))))
 
 (defn -main
   [& args]
   (let [p-threshold (if (empty? args)
-                      0.01  ; Default to 1% significance level
+                      0.01
                       (let [parsed (parse-double (first args))]
                         (if (nil? parsed)
                           (do
@@ -199,18 +218,21 @@
                                       (concat acc anomalies)
                                       acc))
                                   []
-                                  matchups-by-username)]
+                                  matchups-by-username)
+            filtered-anomalies (remove-sub-stretches all-anomalies)]
 
         (println (format "Season: %s" (:season season-data)))
         (println (format "Points For - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-for) (:std-dev season-stats-for)))
         (println (format "Points Against - Mean: %.2f, Std Dev: %.2f" (:mean season-stats-against) (:std-dev season-stats-against)))
         (println)
 
-        (let [sorted-anomalies (sort-by :p-value all-anomalies)]
+        (let [sorted-anomalies (sort-by :p-value filtered-anomalies)]
           (if (empty? sorted-anomalies)
             (println "No anomalous stretches found with the given p-value threshold.")
             (do
-              (println (format "Found %d anomalous stretches:" (count sorted-anomalies)))
+              (println (format "Found %d anomalous stretches (filtered from %d):"
+                               (count sorted-anomalies)
+                               (count all-anomalies)))
               (println)
               (doseq [anomaly (take 20 sorted-anomalies)]
                 (println (format "[%s] %s: %s streak (weeks %s)"

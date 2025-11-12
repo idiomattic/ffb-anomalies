@@ -1,5 +1,6 @@
 (ns fantasy-stats.sleeper
-  (:require [hato.client :as hc]
+  (:require [clojure.core.memoize :as memoize]
+            [hato.client :as hc]
             [cheshire.core :as json]
             [fantasy-stats.config :as config]))
 
@@ -91,19 +92,14 @@
 
 (defn- fetch-all-data []
   (let [leagues (get-leagues (get-in config/store [:league :id]))]
-    (doseq [league leagues]
-      (let [{:keys [league-id]} league
-            roster-id->username (make-roster-id-to-username-map {:league-id league-id})
-            matchups (get-league-matchups league)]
-        (merge league
-               {:matchups matchups
-                :roster-id->username roster-id->username})))))
+    (mapv (fn [league]
+            (let [{:keys [league-id]} league
+                  roster-id->username (make-roster-id-to-username-map {:league-id league-id})
+                  matchups (get-league-matchups league)]
+              (merge league
+                     {:matchups matchups
+                      :roster-id->username roster-id->username})))
+          leagues)))
 
-(defn- fetch-all-data-memoized []
-  )
-
-#_(defn data [path]
-    {:pre [(string? path)
-           (not-empty path)]}
-    (let [all-files (.list (io/file path))]
-      (mapv #(edn/read-string (slurp (io/resource %))) all-files)))
+(def fetch-all-data-memoized
+  (memoize/ttl fetch-all-data :ttl/threshold (get-in config/store [:settings :data-memoization-ttl-ms])))

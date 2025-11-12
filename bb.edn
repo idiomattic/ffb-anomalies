@@ -1,3 +1,0 @@
-{:paths ["bb"]
- :deps {hato/hato {:mvn/version "1.0.0"}
-        cheshire/cheshire {:mvn/version "6.1.0"}}}

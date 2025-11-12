@@ -1,5 +1,5 @@
 (ns fantasy-stats.main
-  (:require [fantasy-stats.in :as in]
+  (:require [fantasy-stats.sleeper :as sleeper]
             [fantasy-stats.parse :as parse]
             [fantasy-stats.out :as out])
   (:gen-class))
@@ -19,7 +19,7 @@
     (out/p-threshold! p-threshold)
     (println)
 
-    (doseq [season-data (in/data "resources/")]
+    (doseq [season-data (sleeper/fetch-all-data-memoized)]
       (let [{:keys [season-stats-for season-stats-against anomalies]} (parse/anomalies season-data p-threshold)]
         (out/season-info! {:season-data season-data
                            :stats-for season-stats-for

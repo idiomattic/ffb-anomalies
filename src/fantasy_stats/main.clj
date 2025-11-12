@@ -1,5 +1,6 @@
 (ns fantasy-stats.main
-  (:require [fantasy-stats.sleeper :as sleeper]
+  (:require [fantasy-stats.config :as config]
+            [fantasy-stats.sleeper :as sleeper]
             [fantasy-stats.parse :as parse]
             [fantasy-stats.out :as out])
   (:gen-class))
@@ -8,7 +9,7 @@
 (defn -main
   [& args]
   (let [p-threshold (if (empty? args)
-                      0.01
+                      (get-in config/store [:settings :default-p-threshold])
                       (let [parsed (parse-double (first args))]
                         (if (nil? parsed)
                           (do

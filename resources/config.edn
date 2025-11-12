@@ -1,3 +1,5 @@
 {:league {:id #or [#env SLEEPER_LEAGUE_ID "1111111111111111111"]}
- :settings {:data-memoization-ttl-ms 60000
+ :settings {:default-p-threshold 0.01
+            :min-z-score-of-interest 2.0
+            :data-memoization-ttl-ms 60000
             :max-week 17}}

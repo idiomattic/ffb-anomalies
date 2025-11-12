@@ -1,5 +1,6 @@
 (ns fantasy-stats.out
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [fantasy-stats.config :as config]))
 
 (defn p-threshold! [p-threshold]
   (println (format "Using p-value threshold: %s (finding events rarer than %.1f%%)"
@@ -20,7 +21,7 @@
 (defn anomalies!
   [anomalies]
   (let [sorted-anomalies (->> anomalies
-                              (filter #(>= (Math/abs (:z-score %)) 2.0))
+                              (filter #(>= (Math/abs (:z-score %)) (get-in config/store [:settings :min-z-score-of-interest])))
                               (sort-by :p-value))]
     (if (empty? sorted-anomalies)
       (println "No anomalous stretches found with the given p-value threshold.")

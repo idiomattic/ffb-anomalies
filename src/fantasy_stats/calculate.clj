@@ -39,35 +39,32 @@
 
 (defn anomalous-stretches
   "Find stretches that are statistically anomalous based on p-value threshold."
-  [{:keys [username matchups all-points-for all-points-against p-threshold]}]
-  (let [stats-for (summary-stats all-points-for)
-        stats-against (summary-stats all-points-against)]
+  [{:keys [username matchups all-points p-threshold]}]
+  (let [{:keys [std-dev mean]} (summary-stats all-points)]
     (reduce
      (fn [acc stretch-length]
        (let [stretches (find-consecutive-stretches matchups stretch-length)
              ;; For multi-game stretches, we need to adjust the standard deviation
              ;; The variance of a sum is n * variance (assuming independence)
-             std-dev-sum-for (* (:std-dev stats-for) (Math/sqrt stretch-length))
-             std-dev-sum-against (* (:std-dev stats-against) (Math/sqrt stretch-length))
-             mean-sum-for (* (:mean stats-for) stretch-length)
-             mean-sum-against (* (:mean stats-against) stretch-length)]
+             std-dev-sum (* std-dev (Math/sqrt stretch-length))
+             mean-sum (* mean stretch-length)]
          (reduce
           (fn [acc stretch]
             (let [p-value-for-high (p-value {:value (:total-for stretch)
-                                             :mean mean-sum-for
-                                             :std-dev std-dev-sum-for
+                                             :mean mean-sum
+                                             :std-dev std-dev-sum
                                              :direction :high})
                   p-value-for-low (p-value {:value (:total-for stretch)
-                                            :mean mean-sum-for
-                                            :std-dev std-dev-sum-for
+                                            :mean mean-sum
+                                            :std-dev std-dev-sum
                                             :direction :low})
                   p-value-against-high (p-value {:value (:total-against stretch)
-                                                 :mean mean-sum-against
-                                                 :std-dev std-dev-sum-against
+                                                 :mean mean
+                                                 :std-dev std-dev
                                                  :direction :high})
                   p-value-against-low (p-value {:value (:total-against stretch)
-                                                :mean mean-sum-against
-                                                :std-dev std-dev-sum-against
+                                                :mean mean
+                                                :std-dev std-dev
                                                 :direction :low})]
               (cond-> acc
                 (< p-value-for-high p-threshold)
@@ -80,7 +77,7 @@
                        :total (:total-for stretch)
                        :average (:avg-for stretch)
                        :p-value p-value-for-high
-                       :z-score (/ (- (:total-for stretch) mean-sum-for) std-dev-sum-for)})
+                       :z-score (/ (- (:total-for stretch) mean-sum) std-dev-sum)})
 
                 (< p-value-for-low p-threshold)
                 (conj {:username username
@@ -92,7 +89,7 @@
                        :total (:total-for stretch)
                        :average (:avg-for stretch)
                        :p-value p-value-for-low
-                       :z-score (/ (- (:total-for stretch) mean-sum-for) std-dev-sum-for)})
+                       :z-score (/ (- (:total-for stretch) mean-sum) std-dev-sum)})
 
                 (< p-value-against-high p-threshold)
                 (conj {:username username
@@ -104,7 +101,7 @@
                        :total (:total-against stretch)
                        :average (:avg-against stretch)
                        :p-value p-value-against-high
-                       :z-score (/ (- (:total-against stretch) mean-sum-against) std-dev-sum-against)})
+                       :z-score (/ (- (:total-against stretch) mean-sum) std-dev-sum)})
 
                 (< p-value-against-low p-threshold)
                 (conj {:username username
@@ -116,7 +113,7 @@
                        :total (:total-against stretch)
                        :average (:avg-against stretch)
                        :p-value p-value-against-low
-                       :z-score (/ (- (:total-against stretch) mean-sum-against) std-dev-sum-against)}))))
+                       :z-score (/ (- (:total-against stretch) mean-sum) std-dev-sum)}))))
           acc
           stretches)))
      []

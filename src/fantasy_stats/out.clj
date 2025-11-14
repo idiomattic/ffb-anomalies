@@ -49,7 +49,6 @@
           (println))))))
 
 (defn season-info!
-  [{:keys [season-data stats-for stats-against]}]
+  [{:keys [season-data stats]}]
   (println (format "Season: %s" (:season season-data)))
-  (println (format "Points For - Mean: %.2f, Std Dev: %.2f" (:mean stats-for) (:std-dev stats-for)))
-  (println (format "Points Against - Mean: %.2f, Std Dev: %.2f" (:mean stats-against) (:std-dev stats-against))))
+  (println (format "Points - Mean: %.2f, Std Dev: %.2f" (:mean stats) (:std-dev stats))))

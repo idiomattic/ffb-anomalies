@@ -58,14 +58,10 @@
                                               :matchups (parse/matchups matchups roster-id->username)}))
                                  []
                                  matchups-by-week)
-        all-points-for (mapcat (fn [{:keys [matchups]}]
-                                 (map :points-for matchups))
-                               parsed-matchups-by-week)
-        all-points-against (mapcat (fn [{:keys [matchups]}]
-                                     (map :points-against matchups))
-                                   parsed-matchups-by-week)
-        season-stats-for (calculate/summary-stats all-points-for)
-        season-stats-against (calculate/summary-stats all-points-against)
+        all-points (mapcat (fn [{:keys [matchups]}]
+                             (map :points-for matchups)) ;; using points-for, but points-against would return the same since matchups are zero-sum
+                           parsed-matchups-by-week)
+        season-stats (calculate/summary-stats all-points)
         league-members (vals roster-id->username)
         matchups-by-username (reduce
                               (fn [acc username]
@@ -83,14 +79,12 @@
         all-anomalies (reduce (fn [acc [username matchups]]
                                 (if-let [anomalies (seq (calculate/anomalous-stretches {:username username
                                                                                         :matchups matchups
-                                                                                        :all-points-for all-points-for
-                                                                                        :all-points-against all-points-against
+                                                                                        :all-points all-points
                                                                                         :p-threshold p-threshold}))]
                                   (concat acc anomalies)
                                   acc))
                               []
                               matchups-by-username)
         filtered-anomalies (remove-sub-stretches all-anomalies)]
-    {:season-stats-for season-stats-for
-     :season-stats-against season-stats-against
+    {:season-stats season-stats
      :anomalies filtered-anomalies}))

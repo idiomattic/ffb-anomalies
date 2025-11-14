@@ -21,9 +21,8 @@
     (println)
 
     (doseq [season-data (sleeper/fetch-all-data-memoized)]
-      (let [{:keys [season-stats-for season-stats-against anomalies]} (parse/anomalies season-data p-threshold)]
+      (let [{:keys [season-stats anomalies]} (parse/anomalies season-data p-threshold)]
         (out/season-info! {:season-data season-data
-                           :stats-for season-stats-for
-                           :stats-against season-stats-against})
+                           :stats season-stats})
         (println)
         (out/anomalies! anomalies)))))

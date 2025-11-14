@@ -59,12 +59,12 @@
                                             :std-dev std-dev-sum
                                             :direction :low})
                   p-value-against-high (p-value {:value (:total-against stretch)
-                                                 :mean mean
-                                                 :std-dev std-dev
+                                                 :mean mean-sum
+                                                 :std-dev std-dev-sum
                                                  :direction :high})
                   p-value-against-low (p-value {:value (:total-against stretch)
-                                                :mean mean
-                                                :std-dev std-dev
+                                                :mean mean-sum
+                                                :std-dev std-dev-sum
                                                 :direction :low})]
               (cond-> acc
                 (< p-value-for-high p-threshold)

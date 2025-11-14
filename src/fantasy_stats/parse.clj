@@ -50,21 +50,15 @@
 
 (defn calculate-deviation-stats
   "Calculate league-wide statistics on deviations from team averages"
-  [parsed-matchups-by-week team-stats]
-  (let [all-for-deviations (atom [])
-        all-against-deviations (atom [])]
+  [team-stats]
+  (let [;; Collect individual team standard deviations
+        team-std-devs (map (fn [[_ stats]] (:std-dev stats)) team-stats)
+        avg-team-std-dev (/ (reduce + team-std-devs) (count team-std-devs))
+        deviation-std-dev avg-team-std-dev]
+    ;; Minimum of 10 points std-dev
+    (max deviation-std-dev 10.0)))
 
-    (doseq [{:keys [matchups]} parsed-matchups-by-week]
-      (doseq [{:keys [username opponent points-for points-against]} matchups]
-        (when-let [user-mean (get-in team-stats [username :mean])]
-          (swap! all-for-deviations conj (- points-for user-mean)))
-        (when-let [opponent-mean (get-in team-stats [opponent :mean])]
-          (swap! all-against-deviations conj (- points-against opponent-mean)))))
-
-    {:for-std-dev (:std-dev (calculate/summary-stats @all-for-deviations))
-     :against-std-dev (:std-dev (calculate/summary-stats @all-against-deviations))}))
-
-(defn anomalies-hybrid
+(defn anomalies
   "Find anomalies using the hybrid approach - team averages with league-wide variance"
   [season-data p-threshold]
   (let [{matchups-by-week :matchups roster-id->username :roster-id->username} season-data
@@ -77,16 +71,12 @@
                                  []
                                  matchups-by-week)
 
-        ;; Calculate per-team statistics
         team-stats (calculate/team-season-stats parsed-matchups-by-week)
 
-        ;; Calculate league-wide deviation statistics
-        deviation-stats (calculate-deviation-stats parsed-matchups-by-week team-stats)
+        league-wide-std-dev (calculate-deviation-stats team-stats)
 
-        ;; Get all league members
         league-members (vals roster-id->username)
 
-        ;; Build matchups by username with relative performance data
         matchups-by-username (reduce
                               (fn [acc username]
                                 (assoc acc username
@@ -95,10 +85,11 @@
                                                     (when-let [user-matchup (some #(when (= username (:username %)) %)
                                                                                   matchups)]
                                                       (merge {:season season :week week}
-                                                             (dissoc user-matchup :username)))))
+                                                             user-matchup))))
                                             (filter :opponent)
                                             vec
                                             (#(calculate/calculate-relative-performances % team-stats))
+                                            (mapv #(dissoc % :username))
                                             (map-indexed (fn [i el] (assoc el :matchup-index i))))))
                               {}
                               league-members)
@@ -106,10 +97,10 @@
         ;; Find all anomalies using the hybrid approach
         all-anomalies (reduce (fn [acc [username matchups]]
                                 (let [team-mean (get-in team-stats [username :mean])]
-                                  (if-let [anomalies (seq (calculate/anomalous-stretches-hybrid
+                                  (if-let [anomalies (seq (calculate/anomalous-stretches
                                                            {:username username
                                                             :matchups matchups
-                                                            :deviation-stats deviation-stats
+                                                            :league-wide-std-dev league-wide-std-dev
                                                             :team-mean team-mean
                                                             :p-threshold p-threshold}))]
                                     (concat acc anomalies)
@@ -120,10 +111,5 @@
         filtered-anomalies (remove-sub-stretches all-anomalies)]
 
     {:season-stats {:team-stats team-stats
-                    :deviation-stats deviation-stats}
+                    :league-wide-std-dev league-wide-std-dev}
      :anomalies filtered-anomalies}))
-
-;; Keep the old function name for backward compatibility, but use the hybrid approach
-(defn anomalies
-  [season-data p-threshold]
-  (anomalies-hybrid season-data p-threshold))

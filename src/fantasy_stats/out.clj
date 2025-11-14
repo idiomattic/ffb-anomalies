@@ -155,15 +155,12 @@
 
 (defn season-info!
   [{:keys [season-data stats]}]
-  (let [team-stats (:team-stats stats)
-        deviation-stats (:deviation-stats stats)]
+  (let [{:keys [league-wide-std-dev team-stats]} stats]
     (println (format "\nSeason: %s" (:season season-data)))
     (println (format "Teams analyzed: %d" (count team-stats)))
     (println (format "League-wide deviation standard deviations:"))
     (println (format "  - Points For: %.2f (how much teams vary from their average)"
-                     (:for-std-dev deviation-stats)))
-    (println (format "  - Points Against: %.2f (how much opponents vary from their average)"
-                     (:against-std-dev deviation-stats)))
+                     league-wide-std-dev))
     (println)
     (println "Team Averages:")
     (doseq [[username {:keys [mean std-dev]}] (sort-by #(- (get-in % [1 :mean])) team-stats)]

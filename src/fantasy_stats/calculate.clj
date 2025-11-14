@@ -8,7 +8,36 @@
       (.addValue stats (double n)))
     {:mean (.getMean stats)
      :std-dev (.getStandardDeviation stats)
-     :variance (.getVariance stats)}))
+     :variance (.getVariance stats)
+     :count (.getN stats)}))
+
+(defn team-season-stats
+  "Calculate each team's mean and std-dev for the season"
+  [parsed-matchups-by-week]
+  (let [teams-data (reduce (fn [acc {:keys [matchups]}]
+                             (reduce (fn [team-acc {:keys [username points-for]}]
+                                       (update team-acc username (fnil conj []) points-for))
+                                     acc
+                                     matchups))
+                           {}
+                           parsed-matchups-by-week)]
+    (reduce (fn [acc [username scores]]
+              (assoc acc username (summary-stats scores)))
+            {}
+            teams-data)))
+
+(defn calculate-relative-performances
+  "For each matchup, calculate how much above/below average each team scored"
+  [matchups team-stats]
+  (mapv (fn [matchup]
+          (let [user-mean (get-in team-stats [(:username matchup) :mean])
+                opponent-mean (get-in team-stats [(:opponent matchup) :mean])]
+            (assoc matchup
+                   :points-for-deviation (when user-mean
+                                           (- (:points-for matchup) user-mean))
+                   :points-against-deviation (when opponent-mean
+                                               (- (:points-against matchup) opponent-mean)))))
+        matchups))
 
 (defn find-consecutive-stretches
   "Find all consecutive stretches of matchups of a given length."
@@ -22,7 +51,12 @@
               :total-for (reduce + (map :points-for stretch))
               :total-against (reduce + (map :points-against stretch))
               :avg-for (/ (reduce + (map :points-for stretch)) stretch-length)
-              :avg-against (/ (reduce + (map :points-against stretch)) stretch-length)}))
+              :avg-against (/ (reduce + (map :points-against stretch)) stretch-length)
+              ;; New fields for relative performance
+              :total-for-deviation (reduce + (keep :points-for-deviation stretch))
+              :total-against-deviation (reduce + (keep :points-against-deviation stretch))
+              :avg-for-deviation (/ (reduce + (keep :points-for-deviation stretch)) stretch-length)
+              :avg-against-deviation (/ (reduce + (keep :points-against-deviation stretch)) stretch-length)}))
          (range (- (count matchups) stretch-length -1)))))
 
 (def ^:private standard-normal (NormalDistribution. 0.0 1.0))
@@ -37,83 +71,105 @@
       :both (* 2 (min (.cumulativeProbability standard-normal z-score)
                       (- 1 (.cumulativeProbability standard-normal z-score)))))))
 
-(defn anomalous-stretches
-  "Find stretches that are statistically anomalous based on p-value threshold."
-  [{:keys [username matchups all-points p-threshold]}]
-  (let [{:keys [std-dev mean]} (summary-stats all-points)]
+(defn anomalous-stretches-hybrid
+  "Find stretches that are statistically anomalous using the hybrid approach.
+   Uses team's own average but league-wide variance for significance testing."
+  [{:keys [username matchups deviation-stats team-mean p-threshold]}]
+  (let [;; For deviations from team average (points-for)
+        deviation-std-dev (:for-std-dev deviation-stats)
+
+        ;; For opponent overperformance (points-against)
+        opponent-deviation-std-dev (:against-std-dev deviation-stats)]
+
     (reduce
      (fn [acc stretch-length]
        (let [stretches (find-consecutive-stretches matchups stretch-length)
-             ;; For multi-game stretches, we need to adjust the standard deviation
-             ;; The variance of a sum is n * variance (assuming independence)
-             std-dev-sum (* std-dev (Math/sqrt stretch-length))
-             mean-sum (* mean stretch-length)]
+             ;; Standard deviation for sum of n deviations
+             std-dev-sum-for (* deviation-std-dev (Math/sqrt stretch-length))
+             std-dev-sum-against (* opponent-deviation-std-dev (Math/sqrt stretch-length))]
          (reduce
           (fn [acc stretch]
-            (let [p-value-for-high (p-value {:value (:total-for stretch)
-                                             :mean mean-sum
-                                             :std-dev std-dev-sum
-                                             :direction :high})
-                  p-value-for-low (p-value {:value (:total-for stretch)
-                                            :mean mean-sum
-                                            :std-dev std-dev-sum
-                                            :direction :low})
-                  p-value-against-high (p-value {:value (:total-against stretch)
-                                                 :mean mean-sum
-                                                 :std-dev std-dev-sum
-                                                 :direction :high})
-                  p-value-against-low (p-value {:value (:total-against stretch)
-                                                :mean mean-sum
-                                                :std-dev std-dev-sum
-                                                :direction :low})]
+            (let [;; For points-for: how much above/below own average
+                  p-value-for-high (when (pos? std-dev-sum-for)
+                                     (p-value {:value (:total-for-deviation stretch)
+                                               :mean 0  ;; Deviations should average to 0
+                                               :std-dev std-dev-sum-for
+                                               :direction :high}))
+                  p-value-for-low (when (pos? std-dev-sum-for)
+                                    (p-value {:value (:total-for-deviation stretch)
+                                              :mean 0
+                                              :std-dev std-dev-sum-for
+                                              :direction :low}))
+
+                  ;; For points-against: how much opponents overperformed
+                  p-value-against-high (when (pos? std-dev-sum-against)
+                                         (p-value {:value (:total-against-deviation stretch)
+                                                   :mean 0
+                                                   :std-dev std-dev-sum-against
+                                                   :direction :high}))
+                  p-value-against-low (when (pos? std-dev-sum-against)
+                                        (p-value {:value (:total-against-deviation stretch)
+                                                  :mean 0
+                                                  :std-dev std-dev-sum-against
+                                                  :direction :low}))]
               (cond-> acc
-                (< p-value-for-high p-threshold)
+                (and p-value-for-high (< p-value-for-high p-threshold))
                 (conj {:username username
-                       :type :points-for-high
+                       :type :hot-streak
                        :stretch-length stretch-length
                        :weeks (map :week (:stretch stretch))
                        :start-week (:week (first (:stretch stretch)))
                        :end-week (:week (last (:stretch stretch)))
                        :total (:total-for stretch)
                        :average (:avg-for stretch)
+                       :team-average team-mean
+                       :total-above-average (:total-for-deviation stretch)
+                       :avg-above-average (:avg-for-deviation stretch)
                        :p-value p-value-for-high
-                       :z-score (/ (- (:total-for stretch) mean-sum) std-dev-sum)})
+                       :z-score (/ (:total-for-deviation stretch) std-dev-sum-for)})
 
-                (< p-value-for-low p-threshold)
+                (and p-value-for-low (< p-value-for-low p-threshold))
                 (conj {:username username
-                       :type :points-for-low
+                       :type :cold-streak
                        :stretch-length stretch-length
                        :weeks (map :week (:stretch stretch))
                        :start-week (:week (first (:stretch stretch)))
                        :end-week (:week (last (:stretch stretch)))
                        :total (:total-for stretch)
                        :average (:avg-for stretch)
+                       :team-average team-mean
+                       :total-below-average (:total-for-deviation stretch)
+                       :avg-below-average (:avg-for-deviation stretch)
                        :p-value p-value-for-low
-                       :z-score (/ (- (:total-for stretch) mean-sum) std-dev-sum)})
+                       :z-score (/ (:total-for-deviation stretch) std-dev-sum-for)})
 
-                (< p-value-against-high p-threshold)
+                (and p-value-against-high (< p-value-against-high p-threshold))
                 (conj {:username username
-                       :type :points-against-high
+                       :type :opponent-hot-streak
                        :stretch-length stretch-length
                        :weeks (map :week (:stretch stretch))
                        :start-week (:week (first (:stretch stretch)))
                        :end-week (:week (last (:stretch stretch)))
-                       :total (:total-against stretch)
-                       :average (:avg-against stretch)
+                       :total-against (:total-against stretch)
+                       :average-against (:avg-against stretch)
+                       :opponent-overperformance (:total-against-deviation stretch)
+                       :avg-opponent-overperformance (:avg-against-deviation stretch)
                        :p-value p-value-against-high
-                       :z-score (/ (- (:total-against stretch) mean-sum) std-dev-sum)})
+                       :z-score (/ (:total-against-deviation stretch) std-dev-sum-against)})
 
-                (< p-value-against-low p-threshold)
+                (and p-value-against-low (< p-value-against-low p-threshold))
                 (conj {:username username
-                       :type :points-against-low
+                       :type :opponent-cold-streak
                        :stretch-length stretch-length
                        :weeks (map :week (:stretch stretch))
                        :start-week (:week (first (:stretch stretch)))
                        :end-week (:week (last (:stretch stretch)))
-                       :total (:total-against stretch)
-                       :average (:avg-against stretch)
+                       :total-against (:total-against stretch)
+                       :average-against (:avg-against stretch)
+                       :opponent-underperformance (:total-against-deviation stretch)
+                       :avg-opponent-underperformance (:avg-against-deviation stretch)
                        :p-value p-value-against-low
-                       :z-score (/ (- (:total-against stretch) mean-sum) std-dev-sum)}))))
+                       :z-score (/ (:total-against-deviation stretch) std-dev-sum-against)}))))
           acc
           stretches)))
      []

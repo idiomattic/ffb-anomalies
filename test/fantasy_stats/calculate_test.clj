@@ -60,15 +60,16 @@
 
 (deftest test-summary-stats-known-values
   (testing "summary-stats with known statistical values"
-    (let [data [2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0]  ; mean=5, std-dev=2
+    (let [data [2.0 4.0 4.0 4.0 5.0 5.0 7.0 9.0]  ; mean=5, sample std-dev≈2.138
           stats (calc/summary-stats data)]
 
       (testing "Mean matches expected value"
         (is (= 5.0 (:mean stats))))
 
       (testing "Standard deviation matches expected value"
-        (is (< (Math/abs (- (:std-dev stats) 2.0)) 0.01)
-            "Standard deviation should be approximately 2.0")))))
+        ;; Sample std-dev = sqrt(32/7) ≈ 2.138
+        (is (< (Math/abs (- (:std-dev stats) 2.138)) 0.01)
+            "Standard deviation should be approximately 2.138 (sample std-dev)")))))
 
 (deftest test-summary-stats-edge-cases
   (testing "summary-stats edge cases"
@@ -77,8 +78,9 @@
       (let [stats (calc/summary-stats [100.0])]
         (is (= 100.0 (:mean stats)))
         (is (= 1 (:count stats)))
-        (is (Double/isNaN (:std-dev stats))
-            "Standard deviation of single value should be NaN")))
+        ;; Apache Commons Math returns 0.0 for single-value std-dev
+        (is (= 0.0 (:std-dev stats))
+            "Standard deviation of single value should be 0.0")))
 
     (testing "Identical values"
       (let [stats (calc/summary-stats [100.0 100.0 100.0])]
@@ -564,6 +566,8 @@
               "End week should match last week in weeks vector")
           (is (= (:stretch-length anomaly) (count (:weeks anomaly)))
               "Stretch length should equal number of weeks"))))))
+
+;; ==================== INTEGRATION TEST ====================
 
 (deftest test-full-calculation-pipeline
   (testing "Complete calculation pipeline with realistic data"

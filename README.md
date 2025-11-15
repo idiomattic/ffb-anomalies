@@ -23,7 +23,7 @@ The app examines all possible consecutive game stretches (2-5 games) and calcula
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone git@github.com:idiomattic/ffb-anomalies.git
    cd fantasy-stats
    ```
 
@@ -79,4 +79,4 @@ Found 8 anomalous stretches:
 
 ## License
 
-[Your license here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -32,21 +32,23 @@
   "Remove anomalous stretches that are fully contained within other stretches
    of the same type for the same user."
   [anomalies]
-  (let [grouped (group-by (juxt :username :type) anomalies)]
-    (mapcat (fn [group-anomalies]
-              (let [sorted (sort-by :p-value group-anomalies)]
-                (reduce (fn [kept anomaly]
-                          (if (some (fn [other]
-                                      (and (not= anomaly other)
-                                           (<= (:p-value other) (:p-value anomaly))
-                                           (set/subset? (set (:weeks anomaly))
-                                                        (set (:weeks other)))))
-                                    sorted)
-                            kept
-                            (conj kept anomaly)))
-                        []
-                        sorted)))
-            (vals grouped))))
+  (->> anomalies
+       (group-by (juxt :username :type))
+       vals
+       (mapcat (fn [group-anomalies]
+                 (let [sorted (sort-by :p-value group-anomalies)]
+                   (reduce (fn [kept anomaly]
+                             (if (some (fn [other]
+                                         (and (not= anomaly other)
+                                              (<= (:p-value other) (:p-value anomaly))
+                                              (set/subset? (set (:weeks anomaly))
+                                                           (set (:weeks other)))))
+                                       sorted)
+                               kept
+                               (conj kept anomaly)))
+                           []
+                           sorted))))
+       vec))
 
 (defn calculate-deviation-stats
   "Calculate league-wide statistics on deviations from team averages"

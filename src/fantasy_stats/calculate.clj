@@ -111,7 +111,7 @@
               (conj {:username username
                      :type :hot-streak
                      :stretch-length stretch-length
-                     :weeks (map :week (:stretch stretch))
+                     :weeks (mapv :week (:stretch stretch))
                      :start-week (:week (first (:stretch stretch)))
                      :end-week (:week (last (:stretch stretch)))
                      :total (:total-for stretch)
@@ -126,7 +126,7 @@
               (conj {:username username
                      :type :cold-streak
                      :stretch-length stretch-length
-                     :weeks (map :week (:stretch stretch))
+                     :weeks (mapv :week (:stretch stretch))
                      :start-week (:week (first (:stretch stretch)))
                      :end-week (:week (last (:stretch stretch)))
                      :total (:total-for stretch)
@@ -141,7 +141,7 @@
               (conj {:username username
                      :type :opponent-hot-streak
                      :stretch-length stretch-length
-                     :weeks (map :week (:stretch stretch))
+                     :weeks (mapv :week (:stretch stretch))
                      :start-week (:week (first (:stretch stretch)))
                      :end-week (:week (last (:stretch stretch)))
                      :total-against (:total-against stretch)
@@ -155,7 +155,7 @@
               (conj {:username username
                      :type :opponent-cold-streak
                      :stretch-length stretch-length
-                     :weeks (map :week (:stretch stretch))
+                     :weeks (mapv :week (:stretch stretch))
                      :start-week (:week (first (:stretch stretch)))
                      :end-week (:week (last (:stretch stretch)))
                      :total-against (:total-against stretch)
